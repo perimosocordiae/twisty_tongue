@@ -6,10 +6,12 @@ CJ Carey, Fall 2010
 from re import sub
 from sys import argv, stderr, stdin
 from pickle import load
-from os.path import basename, dirname, join as pjoin
+from os.path import basename
 from optparse import OptionParser
+from subprocess import Popen, PIPE
 from collections import namedtuple
 from markov_model import MarkovModel
+from random_model import RandomModel
 from feature_model import FeatureModel
 
 def load_pronunciation_markov(fname):
@@ -34,7 +36,11 @@ def load_pronunciation_feature(fname):
     return unilex
 
 def main(opts):
-    if opts.model:
+    if opts.random:
+        print('Loading dictionary...', file=stderr)
+        pronunc_dict = load_pronunciation_feature(opts.pronounce)
+        model = RandomModel(pronunc_dict)
+    elif opts.model:
         print('Loading cached model...', file=stderr)
         model = load(open(opts.model, 'rb'))
     elif opts.corpus:
@@ -62,7 +68,6 @@ def main(opts):
     else:
         print('Making {:d} twisters...'.format(opts.num_twisters), file=stderr)
         twist_type = 'reverse' if opts.reverse_twist else 'normal'
-        twist_type = 'random' if opts.random else twist_type
         for _ in range(opts.num_twisters):
             print_twister(model, opts.words_per_twister, twist_type)
 
@@ -78,21 +83,26 @@ def print_twister(model, num_words, twist_type):
     print(*words, end=' ==> ')
     print(' '.join(''.join(p) for p in phons))
 
+def locate_unilex():
+    out,_ = Popen('locate unilex', shell=True, stdout=PIPE).communicate()
+    paths = [p for p in out.decode().splitlines() if basename(p) == 'unilex']
+    if not paths:
+        print("Error: couldn't locate unilex", file=stderr)
+        exit(-1)
+    return paths[0]
+
 def parse_opts():
-    unilex = pjoin(dirname(argv[0]), '../unilex')
     parser = OptionParser(description=__doc__)
-    parser.add_option('-c', '--corpus', #default='brown',
-            help='Text to train on')#, default=[brown]')
-    parser.add_option('-m', '--model', default=None,
-            help='Pre-trained model')
-    parser.add_option('-p', '--pronounce', default=unilex,
-            help='Spelling/pronunciation dictionary, default=[%s]' % unilex)
+    parser.add_option('-c', '--corpus', help='Text to train on')
+    parser.add_option('-m', '--model', help='Pre-trained model')
+    parser.add_option('-p', '--pronounce',
+            help='Spelling/pronunciation dictionary')
     parser.add_option('-t', '--training-size', type=int, default=10000,
             help='Number of words from the corpus to train on (-1 to use all)')
     parser.add_option('-n', '--num-twisters', type=int, default=5,
             help='Number of tongue twisters to output, default=5')
     parser.add_option('-w', '--words-per-twister', type=int, default=2,
-            help='Number of words per generated twister')
+            help='Number of words per generated twister, default=2')
     parser.add_option('-r','--reverse-twist',action='store_true',default=False,
             help='Generate especially non-twisty phrases')
     parser.add_option('-R','--random',action='store_true',default=False,
@@ -100,10 +110,8 @@ def parse_opts():
     parser.add_option('-s', '--score', action='store_true', default=False,
             help='Use the model to score a list of sentences from stdin')
     opts = parser.parse_args()[0]
-    #if not opts.corpus and not opts.model:
-    #    parser.error('Must provide a corpus or model')
     if not opts.pronounce and not opts.model:
-        parser.error('Must provide a pronunciation dictionary or model')
+        opts.pronounce = locate_unilex()
     if opts.training_size < 0: # use all of the corpus
         opts.training_size = None
     if opts.num_twisters < 0:
