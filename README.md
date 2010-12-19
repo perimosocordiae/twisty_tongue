@@ -41,3 +41,22 @@ These metrics allow comparison of words at a phonetic level.
 Since tongue twisters tend to rely on the confusion associated with pronouncing
 similar-yet-different words rapidly, the model selects a sequence of words with minute phonological changes between successive words.
 
+I didn't create an objective way to determine the quality of tongue
+twisters, but eyeballing the results of both models shows that the feature-based
+model is much more effective.  In fact, the Markov model's results are only
+marginally better than word sequences generated at random.  I think this stems
+from an issue of undersampling.  The model will avoid choosing commonly used
+bigrams, but the task of selecting the *least* likely bigram requires a much
+denser sample.  Given how large this space is, it seems that an empirical model
+like this one may be infeasible.
+
+## Future Work ##
+The framework provided here allows experimentation with a wide array of
+generator models and techniques.  Some improvements/additions could be:
+ * Using a grammar to generate syntactically valid tongue twisters.
+ * Applying a non-uniform weight to sounds when calculating word distances.
+   * For example, one could weight the initial consonant higher than the others,
+   to produce more alliterative tongue twisters.
+ * Using a corpus of sample tongue twisters, then selecting the most likely bigrams.
+   * This approach will probably suffer from undersampling as well.
+ * Using an A,B,A',B' model (where A and A', B and B' are "twisty" bigrams).
