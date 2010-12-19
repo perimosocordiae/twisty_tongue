@@ -53,6 +53,7 @@ like this one may be infeasible.
 ## Future Work ##
 The framework provided here allows experimentation with a wide array of
 generator models and techniques.  Some improvements/additions could be:
+
  * Using a grammar to generate syntactically valid tongue twisters.
  * Applying a non-uniform weight to sounds when calculating word distances.
    * For example, one could weight the initial consonant higher than the others,
