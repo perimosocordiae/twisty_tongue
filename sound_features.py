@@ -1,4 +1,4 @@
-
+# -*- coding: utf-8 -*-
 """Distinctive feature matrix for English sounds"""
 
 # adapted from the charts at:
@@ -6,48 +6,53 @@
 # http://hum.uchicago.edu/~jriggle/PhonChart2008.pdf
 feature_matrix = {
         'p': '--+--+-------', 'b': '--++-+-------', 't': '--+----+-----',
-		'd': '--++---+-----', 'k': '--+------++--', 'g': '--++-----++--',
+        'd': '--++---+-----', 'k': '--+------++--', 'g': '--++-----++--',
         'f': '-++--++------', 'v': '-+++-++------', 'θ': '-++---++-----',
-		'ð': '-+++--++-----', 's': '-++----+-----', 'z': '-+++---+-----',
+        'ð': '-+++--++-----', 's': '-++----+-----', 'z': '-+++---+-----',
         'ʃ': '-++----++-+--', 'ʒ': '-+++---++-+--', 'm': '+-++++-------',
-		'n': '+-+++--+-----', 'ŋ': '+-+++----++--',	'l': '+-++---+-----',
+        'n': '+-+++--+-----', 'ŋ': '+-+++----++--', 'l': '+-++---+-----',
         'r': '++++---+-----', 'j': '++-+----+-+--', 'w': '++-+-+---++--',
-		'h': '++-----------', 'i': '++-+----+-+-+', 'ɪ': '++-+----+-+--',
+        'h': '++-----------', 'i': '++-+----+-+-+', 'ɪ': '++-+----+-+--',
         'e': '++-+----+----', 'a': '++-+----+--++', 'ɑ': '++-+-----+-++',
-		'ɔ': '++-+-+---+--+', 'ʊ': '++-+-+---++--', 'u': '++-+-+---++-+',
-        'ʌ': '++-+-------+-', 'ə': '++-+---------', 'o': '++-+-----+---', 
-		'ɛ': '++-+--------+', 
-		'ɝ': '++++---+----+', # (like 'r', with +tense)
-		'ɚ': '++++---+-----', # (same as 'r')
-		'ɾ': '--+----+-----', # (same as 't')
+        'ɔ': '++-+-+---+--+', 'ʊ': '++-+-+---++--', 'u': '++-+-+---++-+',
+        'ʌ': '++-+-------+-', 'ə': '++-+---------', 'o': '++-+-----+---',
+        'ɛ': '++-+--------+',
+        'ɝ': '++++---+----+',  # (like 'r', with +tense)
+        'ɚ': '++++---+-----',  # (same as 'r')
+        'ɾ': '--+----+-----',  # (same as 't')
 }
 feature_key = ('son','cont','cons','voice','nasal','lab','dent','cor',
-        'front','back','high','low','tense')
+               'front','back','high','low','tense')
 
 VOWELS = r'[iɪeaɑɔʊuʌəoɜ]'
 
 try:
     import numpy
-    numpy_feats = {k: numpy.array([c == '+' for c in v]) \
-                    for k,v in feature_matrix.items()}
     has_numpy = True
 except ImportError:
     has_numpy = False
+
 
 def feature_string(sound):
     """Get a readable representation of a sound's features"""
     return ' '.join(f + k for f, k in zip(feature_matrix[sound], feature_key))
 
-if has_numpy: # fast version
+
+if has_numpy:  # fast version
+    numpy_feats = {k: numpy.array([c == '+' for c in v])
+                   for k,v in feature_matrix.items()}
+
     def sound_distance(sound1, sound2):
         """Hamming distance between sound features"""
         arr1, arr2 = numpy_feats[sound1], numpy_feats[sound2]
         return (arr1 != arr2).sum()/arr1.size
-else: # slow version
+else:  # slow version
     def sound_distance(sound1, sound2):
         """Hamming distance between sound features"""
-        return sum(f1 != f2 for f1, f2 in zip(feature_matrix[sound1],
-                                feature_matrix[sound2]))/len(feature_key)
+        str1, str2 = feature_matrix[sound1], feature_matrix[sound2]
+        num_different = sum(f1 != f2 for f1, f2 in zip(str1, str2))
+        return num_different / len(feature_key)
+
 
 def word_distance(word1, word2, cutoff=None):
     """my variant of Levenshtein distance"""

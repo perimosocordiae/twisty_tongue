@@ -9,11 +9,12 @@ from collections import deque, Counter, defaultdict
 
 STREAM_BREAK = 0xDEAD
 
-choosers = { 
+choosers = {
     'normal':  lambda model, prefix: model.most_likely_next(prefix),
     'reverse': lambda model, prefix: model.least_likely_next(prefix),
     'random':  lambda model, prefix: model.random()
 }
+
 
 class MarkovModel:
     """Empirical model of tongue twisters, based on a corpus of 'normal text'
@@ -26,7 +27,8 @@ class MarkovModel:
         self.sylls = MarkovChain(2)
         self.chars = MarkovChain(2)
         # fill the markov chains
-        for syl in pronunc_stream(load_corpus(corpus_name, num_words), spell2sylls):
+        for syl in pronunc_stream(load_corpus(corpus_name, num_words),
+                                  spell2sylls):
             self.sylls.add(syl)
             if syl == STREAM_BREAK:
                 self.chars.add(syl)
@@ -45,14 +47,16 @@ class MarkovModel:
             next_syll = chooser(self.sylls, prefix)
             if next_syll:
                 try:
-                    twister.append(choice([w for w in all_words if w[0] == next_syll]))
+                    twister.append(choice([w for w in all_words
+                                           if w[0] == next_syll]))
                     continue
                 except IndexError:
                     pass
             next_sound = chooser(self.chars, prefix)
             if next_sound:
                 try:
-                    twister.append(choice([w for w in all_words if w[0][0] == next_sound]))
+                    twister.append(choice([w for w in all_words
+                                           if w[0][0] == next_sound]))
                     continue
                 except IndexError:
                     pass
@@ -62,9 +66,9 @@ class MarkovModel:
     def score_sentence(self, sentence):
         """An attempt to assign 'twistiness' scores to a sentence.
         Uses the empirical frequency data, but is largely arbitrary"""
-        from nltk import word_tokenize #  import only on demand, takes forever
+        from nltk import word_tokenize  # import only on demand, takes forever
         parts = list(chain.from_iterable(self.spell2sylls[w.lower()]
-                                      for w in word_tokenize(sentence)))
+                                         for w in word_tokenize(sentence)))
         syll_score, count = 0, 0
         for prefix, x in pairwise(parts):
             syll_score += (self.sylls.likelihood(prefix, x) or 0)
@@ -92,20 +96,21 @@ class MarkovChain:
 
     def __init__(self, kmer_len):
         self.buf = deque(maxlen=kmer_len)
-        self.freqs =  defaultdict(Counter)
+        self.freqs = defaultdict(Counter)
 
     def add(self, x):
         if x == STREAM_BREAK:
             self.buf.clear()
         else:
             if len(self.buf) == self.buf.maxlen:
-                self.buf.popleft() # shuffle one out
+                self.buf.popleft()  # shuffle one out
                 prefix = '|'.join(self.buf)
                 self.freqs[prefix][x] += 1
             self.buf.append(x)
 
     def __get_freqs_for(self, prefix):
-        if len(prefix) + 1 < self.buf.maxlen: return
+        if len(prefix) + 1 < self.buf.maxlen:
+            return
         return self.freqs['|'.join(prefix[-self.buf.maxlen+1:])]
 
     def random(self):
@@ -137,13 +142,15 @@ def pairwise(seq):
     next(b, None)
     return zip(a, b)
 
+
 def load_corpus(corpus_name, num_words=None):
     """Load a corpus from the NLTK sets"""
-    from nltk import corpus # import here, because it takes forever
+    from nltk import corpus  # import here, because it takes forever
     wordstream = getattr(corpus, corpus_name).words
     if num_words:
         return islice(wordstream(), num_words)
     return wordstream()
+
 
 def pronunc_stream(corpus, mapping):
     """Generates a stream of map[word] values, punctuated by

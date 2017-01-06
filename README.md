@@ -2,13 +2,13 @@
 # Twisty Tongue #
 
 ## Dependencies ##
- * A recent-ish *nix system
- * Python 3.x
+ * Python 3.4+
  * A 'unilex' file, somewhere in your filesystem
    * [Download it here](http://ling-alpha.wustl.edu/CompLing/unilex)
 
 ### Optional Deps ###
- * nltk (I had to port it to py3k, grab my version [here](http://dl.dropbox.com/u/11839105/install_nltk_py3k.sh))
+ * nltk
+ * numpy
 
 ## Usage ##
  * `./tongue_twister.py -h` -- Shows the help.
