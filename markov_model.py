@@ -20,48 +20,46 @@ class MarkovModel:
     """Empirical model of tongue twisters, based on a corpus of 'normal text'
     and pair of mappings: spelling <-> syllable pronunciations"""
 
-    def __init__(self, corpus_name, num_words, spell2sylls, sylls2spell):
-        self.spell2sylls = spell2sylls
-        self.sylls2spell = sylls2spell
+    def __init__(self, corpus_name, num_words, unilex):
+        self.spell2sylls = {}
+        self.sylls2spell = {}
+        for sylls, word in unilex.items():
+            self.spell2sylls[word.spelling] = sylls
+            self.sylls2spell[sylls] = word.spelling
         # set up markov chains of length two: only considers the last element
         self.sylls = MarkovChain(2)
         self.chars = MarkovChain(2)
         # fill the markov chains
-        for syl in pronunc_stream(load_corpus(corpus_name, num_words),
-                                  spell2sylls):
-            self.sylls.add(syl)
-            if syl == STREAM_BREAK:
-                self.chars.add(syl)
+        for word in load_corpus(corpus_name, num_words):
+            if word not in self.spell2sylls:
+                self.sylls.add(STREAM_BREAK)
+                self.chars.add(STREAM_BREAK)
             else:
-                for char in syl:
-                    self.chars.add(char)
+                for syl in self.spell2sylls[word]:
+                    self.sylls.add(syl)
+                    for char in syl:
+                        self.chars.add(char)
 
     def make_twister(self, num_words, twist_type='normal'):
         """A stochastic tongue twister generator. Makes greedy word choices,
         based on the frequency data in the model."""
-        chooser = choosers[twist_type]
-        all_words = [w for w in self.sylls2spell.keys() if len(w) < 3]
+        all_words = list(self.sylls2spell.keys())
         twister = [choice(all_words)]  # any one will do to start
+        chooser = choosers[twist_type]
         for _ in range(num_words-1):
             prefix = twister[-1]  # we only care about the last word
-            next_syll = chooser(self.sylls, prefix)
-            if next_syll:
-                try:
-                    twister.append(choice([w for w in all_words
-                                           if w[0] == next_syll]))
-                    continue
-                except IndexError:
-                    pass
-            next_sound = chooser(self.chars, prefix)
-            if next_sound:
-                try:
-                    twister.append(choice([w for w in all_words
-                                           if w[0][0] == next_sound]))
-                    continue
-                except IndexError:
-                    pass
-            twister.append(choice(all_words))
+            word_choices = self._word_choices(chooser, prefix, all_words)
+            twister.append(choice(word_choices))
         return twister, map(self.sylls2spell.__getitem__, twister)
+
+    def _word_choices(self, chooser, prefix, all_words):
+        next_syll = chooser(self.sylls, prefix)
+        if next_syll:
+            return [w for w in all_words if w[0] == next_syll]
+        next_sound = chooser(self.chars, prefix)
+        if next_sound:
+            return [w for w in all_words if w[0][0] == next_sound]
+        return all_words
 
     def score_sentence(self, sentence):
         """An attempt to assign 'twistiness' scores to a sentence.
@@ -145,19 +143,10 @@ def pairwise(seq):
 
 def load_corpus(corpus_name, num_words=None):
     """Load a corpus from the NLTK sets"""
-    from nltk import corpus  # import here, because it takes forever
+    # import here, because it takes forever
+    from nltk import corpus, download
+    download(corpus_name)
     wordstream = getattr(corpus, corpus_name).words
     if num_words:
         return islice(wordstream(), num_words)
     return wordstream()
-
-
-def pronunc_stream(corpus, mapping):
-    """Generates a stream of map[word] values, punctuated by
-    special STREAM_BREAK values that signal an unknown word."""
-    for word in corpus:
-        if word not in mapping:
-            yield STREAM_BREAK
-        else:
-            for x in mapping[word]:
-                yield x

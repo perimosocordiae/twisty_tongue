@@ -3,65 +3,36 @@
 CJ Carey, Fall 2010
 """
 from __future__ import print_function
-from re import sub
-from sys import stderr, stdin
-from pickle import load
-from os.path import basename
+import os
+import re
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-from subprocess import Popen, PIPE
 from collections import namedtuple
+from pickle import load
+from sys import stderr, stdin
 
+from feature_model import FeatureModel
 from markov_model import MarkovModel
 from random_model import RandomModel
-from feature_model import FeatureModel
-
-
-def load_pronunciation_markov(fname):
-    NON_IPA = '[<>{}ˈˌ$%s-]' % chr(809)  # nasty unicode
-    w2p, p2w = {}, {}
-    for line in open(fname):
-        parts = line.split(':')
-        word = parts[0]
-        sylls = tuple(sub(NON_IPA, '', parts[3]).split('.'))
-        w2p[word] = sylls
-        p2w[sylls] = word
-    return w2p, p2w
-
-
-def load_pronunciation_feature(fname):
-    Word = namedtuple('Word', ('spelling','pos'))
-    unilex = {}
-    NON_IPA = '[<>{}ˈˌ$%s.-]' % chr(809)  # nasty unicode
-    for line in open(fname):
-        parts = line.split(':')
-        spell = parts[0]
-        pos, pron = parts[2:4]
-        pron = sub(NON_IPA, '', pron)
-        unilex[pron] = Word(spell, pos.split('/'))
-    return unilex
 
 
 def main(opts):
-    if opts.random:
-        print('Loading dictionary...', file=stderr)
-        pronunc_dict = load_pronunciation_feature(opts.pronounce)
-        model = RandomModel(pronunc_dict)
-    elif opts.model:
+    if opts.model:
         print('Loading cached model...', file=stderr)
         model = load(open(opts.model, 'rb'))
-    elif opts.corpus:
-        print('Loading dictionary...', file=stderr)
-        spell2sylls, sylls2spell = load_pronunciation_markov(opts.pronounce)
-        print('Training model...', file=stderr)
-        name = '_'.join((basename(opts.corpus), str(opts.training_size)))
-        model = MarkovModel(opts.corpus, opts.training_size,
-                            spell2sylls, sylls2spell)
-        print('Dumping {}.pyz for later use'.format(name), file=stderr)
-        model.save(name+'.pyz')
     else:
         print('Loading dictionary...', file=stderr)
-        pronunc_dict = load_pronunciation_feature(opts.pronounce)
-        model = FeatureModel(pronunc_dict)
+        pronunc_dict = load_unilex(opts.pronounce)
+        if opts.random:
+            model = RandomModel(pronunc_dict)
+        elif opts.corpus:
+            print('Training markov model...', file=stderr)
+            model = MarkovModel(opts.corpus, opts.training_size, pronunc_dict)
+            fname = '%s_%s.pyz' % (os.path.basename(opts.corpus),
+                                   opts.training_size)
+            print('Dumping', fname, 'for later use', file=stderr)
+            model.save(fname)
+        else:
+            model = FeatureModel(pronunc_dict)
 
     if opts.score:
         print('Scoring sentences from stdin...', file=stderr)
@@ -78,6 +49,17 @@ def main(opts):
             print_twister(model, opts.words_per_twister, twist_type)
 
 
+def load_unilex(fname):
+    Word = namedtuple('Word', ('spelling', 'pos'))
+    NON_IPA = re.compile('[<>{}ˈˌ$%s-]' % chr(809))
+    unilex = {}
+    for line in open(fname):
+        parts = line.split(':')
+        pron = tuple(NON_IPA.sub('', parts[3]).split('.'))
+        unilex[pron] = Word(spelling=parts[0], pos=parts[2].split('/'))
+    return unilex
+
+
 def print_score(model, line):
     try:
         score = model.score_sentence(line)
@@ -92,21 +74,13 @@ def print_twister(model, num_words, twist_type):
     print(' '.join(''.join(p) for p in phons))
 
 
-def locate_unilex():
-    out,_ = Popen('locate unilex', shell=True, stdout=PIPE).communicate()
-    paths = [p for p in out.decode().splitlines() if basename(p) == 'unilex']
-    if not paths:
-        print("Error: couldn't locate unilex", file=stderr)
-        exit(-1)
-    return paths[0]
-
-
 def parse_opts():
+    unilex_path = os.path.join(os.path.dirname(__file__), 'unilex')
     ap = ArgumentParser(description=__doc__,
                         formatter_class=ArgumentDefaultsHelpFormatter)
     ap.add_argument('-c', '--corpus', help='Text to train on')
     ap.add_argument('-m', '--model', help='Pre-trained model')
-    ap.add_argument('-p', '--pronounce',
+    ap.add_argument('-p', '--pronounce', default=unilex_path,
                     help='Spelling/pronunciation dictionary')
     ap.add_argument('-t', '--training-size', type=int, default=10000,
                     help=('Number of words from the corpus to train on,'
@@ -122,9 +96,7 @@ def parse_opts():
     ap.add_argument('-s', '--score', action='store_true',
                     help='Use the model to score sentences from stdin')
     opts = ap.parse_args()
-    if not opts.pronounce and not opts.model:
-        opts.pronounce = locate_unilex()
-    if opts.training_size < 0:  # use all of the corpus
+    if opts.training_size < 0:  # use the whole corpus
         opts.training_size = None
     if opts.num_twisters < 0:
         ap.error('Must provide a number of twisters > 0')
